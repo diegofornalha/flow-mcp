@@ -39,25 +39,53 @@ type FilterOptions = {
   topics?: (string | string[] | null)[];
 };
 
+// Flow EVM Configuration
+type NetworkConfig = {
+  name: string;
+  rpcUrl: string;
+  chainId: number;
+  blockExplorer: string;
+  currency: string;
+};
+
+// Flow EVM Network Configurations
+const FLOW_NETWORKS: Record<string, NetworkConfig> = {
+  mainnet: {
+    name: 'Flow EVM Mainnet',
+    rpcUrl: 'https://mainnet.evm.nodes.onflow.org',
+    chainId: 747,
+    blockExplorer: 'https://evm.flowscan.io',
+    currency: 'FLOW'
+  },
+  testnet: {
+    name: 'Flow EVM Testnet',
+    rpcUrl: 'https://testnet.evm.nodes.onflow.org',
+    chainId: 545,
+    blockExplorer: 'https://evm-testnet.flowscan.io',
+    currency: 'FLOW'
+  }
+};
+
+// Select the network (can be changed to mainnet when ready)
+const SELECTED_NETWORK = 'testnet';
+const NETWORK_CONFIG = FLOW_NETWORKS[SELECTED_NETWORK];
+
 // Redirect console.log to stderr to avoid breaking the MCP protocol
 const originalConsoleLog = console.log;
 console.log = function(...args: any[]): void {
   console.error.apply(console, args);
 };
 
-// Ethereum RPC URL
-const ETH_RPC_URL: string = 'https://eth.llamarpc.com';
-
 // Initialize the MCP server
 const server = new McpServer({
-  name: 'ethereum-rpc',
+  name: 'flow-evm-rpc',
   version: '1.0.0'
 });
 
 // Helper function to make RPC calls
 async function makeRpcCall(method: string, params: any[] = []): Promise<any> {
   try {
-    const response = await axios.post<RpcResponse>(ETH_RPC_URL, {
+    const response = await axios.post<RpcResponse>(NETWORK_CONFIG.rpcUrl, {
       jsonrpc: '2.0',
       id: 1,
       method,
@@ -76,12 +104,42 @@ async function makeRpcCall(method: string, params: any[] = []): Promise<any> {
   }
 }
 
+// Tool 0: Get Network Information
+server.tool(
+  'flow_getNetworkInfo',
+  'Retrieves information about the current Flow EVM network configuration',
+  {},
+  async () => {
+    try {
+      console.error('Getting Flow EVM network information');
+      
+      return {
+        content: [{ 
+          type: "text", 
+          text: `Flow EVM Network Information:
+Network Name: ${NETWORK_CONFIG.name}
+RPC Endpoint: ${NETWORK_CONFIG.rpcUrl}
+Chain ID: ${NETWORK_CONFIG.chainId}
+Block Explorer: ${NETWORK_CONFIG.blockExplorer}
+Currency: ${NETWORK_CONFIG.currency}`
+        }]
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      return {
+        content: [{ type: "text", text: `Error: Failed to get network information. ${errorMessage}` }],
+        isError: true
+      };
+    }
+  }
+);
+
 // Tool 1: eth_getCode - Gets the code at a specific address
 server.tool(
   'eth_getCode',
-  'Retrieves the code at a given Ethereum address',
+  'Retrieves the code at a given Flow EVM address',
   {
-    address: z.string().regex(/^0x[a-fA-F0-9]{40}$/).describe('The Ethereum address to get code from'),
+    address: z.string().regex(/^0x[a-fA-F0-9]{40}$/).describe('The Flow EVM address to get code from'),
     blockParameter: z.string().default('latest').describe('Block parameter (default: "latest")')
   },
   async (args: { address: string; blockParameter: string }) => {
@@ -108,10 +166,38 @@ server.tool(
   }
 );
 
-// Tool 2: eth_gasPrice - Gets the current gas price
+// Tool 2: eth_chainId - Gets the current chain ID
+server.tool(
+  'eth_chainId',
+  'Retrieves the current chain ID of the Flow EVM network',
+  {},
+  async () => {
+    try {
+      console.error('Getting chain ID');
+      
+      const chainId = await makeRpcCall('eth_chainId');
+      const chainIdDecimal = parseInt(chainId, 16);
+      
+      return {
+        content: [{ 
+          type: "text", 
+          text: `Current Chain ID:\nHex: ${chainId}\nDecimal: ${chainIdDecimal}` 
+        }]
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      return {
+        content: [{ type: "text", text: `Error: Failed to get chain ID. ${errorMessage}` }],
+        isError: true
+      };
+    }
+  }
+);
+
+// Tool 3: eth_gasPrice - Gets the current gas price
 server.tool(
   'eth_gasPrice',
-  'Retrieves the current gas price in wei',
+  'Retrieves the current gas price in Flow EVM',
   {},
   async () => {
     try {
@@ -125,7 +211,7 @@ server.tool(
       return {
         content: [{ 
           type: "text", 
-          text: `Current Gas Price:\n${gasPriceWei} Wei\n${gasPriceGwei.toFixed(2)} Gwei` 
+          text: `Current Gas Price:\n${gasPriceWei} Atto-FLOW\n${gasPriceGwei.toFixed(2)} Gwei` 
         }]
       };
     } catch (error) {
@@ -138,12 +224,12 @@ server.tool(
   }
 );
 
-// Tool 3: eth_getBalance - Gets the balance of an account
+// Tool 4: eth_getBalance - Gets the balance of an account
 server.tool(
   'eth_getBalance',
-  'Retrieves the balance of a given Ethereum address',
+  'Retrieves the balance of a given Flow EVM address',
   {
-    address: z.string().regex(/^0x[a-fA-F0-9]{40}$/).describe('The Ethereum address to check balance'),
+    address: z.string().regex(/^0x[a-fA-F0-9]{40}$/).describe('The Flow EVM address to check balance'),
     blockParameter: z.string().default('latest').describe('Block parameter (default: "latest")')
   },
   async (args: { address: string; blockParameter: string }) => {
@@ -151,14 +237,14 @@ server.tool(
       console.error(`Getting balance for address: ${args.address} at block: ${args.blockParameter}`);
       
       const balance = await makeRpcCall('eth_getBalance', [args.address, args.blockParameter]);
-      // Convert hex balance to decimal and then to ETH for readability
-      const balanceWei = parseInt(balance, 16);
-      const balanceEth = balanceWei / 1e18;
+      // Convert hex balance to decimal and then to FLOW for readability
+      const balanceAttoFlow = parseInt(balance, 16);
+      const balanceFlow = balanceAttoFlow / 1e18;
       
       return {
         content: [{ 
           type: "text", 
-          text: `Balance for ${args.address}:\n${balanceWei} Wei\n${balanceEth.toFixed(6)} ETH` 
+          text: `Balance for ${args.address}:\n${balanceAttoFlow} Atto-FLOW\n${balanceFlow.toFixed(6)} FLOW` 
         }]
       };
     } catch (error) {
@@ -171,7 +257,7 @@ server.tool(
   }
 );
 
-// Tool 4: eth_call - Executes a new message call without creating a transaction
+// Tool 5: eth_call - Executes a new message call without creating a transaction
 server.tool(
   'eth_call',
   'Executes a call to a contract function without creating a transaction',
@@ -208,7 +294,7 @@ server.tool(
   }
 );
 
-// Tool 5: eth_getLogs - Retrieves logs matching the given filter criteria
+// Tool 6: eth_getLogs - Retrieves logs matching the given filter criteria
 server.tool(
   'eth_getLogs',
   'Retrieves logs matching the given filter criteria',
@@ -265,33 +351,23 @@ server.tool(
   }
 );
 
-// Tool 6: eth_sendTransaction - Sends a transaction to the network
+// Tool 7: eth_sendRawTransaction - Sends a signed transaction to the network
 server.tool(
-  'eth_sendTransaction',
-  'Sends a transaction to the Ethereum network',
+  'eth_sendRawTransaction',
+  'Submits a signed transaction to the Flow EVM network',
   {
-    transaction: z.object({
-      from: z.string().regex(/^0x[a-fA-F0-9]{40}$/).describe('The address the transaction is sent from'),
-      to: z.string().regex(/^0x[a-fA-F0-9]{40}$/).optional().describe('The address the transaction is directed to'),
-      gas: z.string().regex(/^0x[a-fA-F0-9]+$/).optional().describe('Integer of the gas provided for the transaction execution in hex'),
-      gasPrice: z.string().regex(/^0x[a-fA-F0-9]+$/).optional().describe('Integer of the gas price used for each paid gas in hex'),
-      value: z.string().regex(/^0x[a-fA-F0-9]+$/).optional().describe('Integer of the value sent with this transaction in hex'),
-      data: z.string().regex(/^0x[a-fA-F0-9]*$/).optional().describe('The compiled code of a contract OR the hash of the invoked method signature and encoded parameters'),
-      nonce: z.string().regex(/^0x[a-fA-F0-9]+$/).optional().describe('Integer of a nonce used to prevent transaction replay')
-    }).describe('The transaction object')
+    signedTransactionData: z.string().regex(/^0x[a-fA-F0-9]+$/).describe('The signed transaction data')
   },
-  async (args: { transaction: TransactionObject }) => {
+  async (args: { signedTransactionData: string }) => {
     try {
-      console.error(`Sending transaction from: ${args.transaction.from}`);
+      console.error(`Sending raw transaction: ${args.signedTransactionData.substring(0, 20)}...`);
       
-      // Note: This will likely fail with a public node as it requires an unlocked account
-      // Most public nodes don't allow sending transactions directly (would need a wallet/private key)
-      const txHash = await makeRpcCall('eth_sendTransaction', [args.transaction]);
+      const txHash = await makeRpcCall('eth_sendRawTransaction', [args.signedTransactionData]);
       
       return {
         content: [{ 
           type: "text", 
-          text: `Transaction sent!\nTransaction Hash: ${txHash}\n\nNote: This request will only work on nodes where the 'from' account is unlocked. Most public nodes don't allow direct transaction sending.`
+          text: `Transaction sent successfully!\nTransaction Hash: ${txHash}\nView on Block Explorer: ${NETWORK_CONFIG.blockExplorer}/tx/${txHash}`
         }]
       };
     } catch (error) {
@@ -299,8 +375,76 @@ server.tool(
       return {
         content: [{ 
           type: "text", 
-          text: `Error: Failed to send transaction. ${errorMessage}\n\nNote: Most public RPC endpoints don't allow sending raw transactions as it requires an unlocked account. Consider using a wallet or signing the transaction locally before broadcasting.`
+          text: `Error: Failed to send transaction. ${errorMessage}`
         }],
+        isError: true
+      };
+    }
+  }
+);
+
+// Tool 8: eth_blockNumber - Gets the latest block number
+server.tool(
+  'eth_blockNumber',
+  'Gets the latest block number on the Flow EVM network',
+  {},
+  async () => {
+    try {
+      console.error('Getting latest block number');
+      
+      const blockNumber = await makeRpcCall('eth_blockNumber');
+      const blockNumberDecimal = parseInt(blockNumber, 16);
+      
+      return {
+        content: [{ 
+          type: "text", 
+          text: `Latest Block Number:\nHex: ${blockNumber}\nDecimal: ${blockNumberDecimal}`
+        }]
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      return {
+        content: [{ type: "text", text: `Error: Failed to get block number. ${errorMessage}` }],
+        isError: true
+      };
+    }
+  }
+);
+
+// Tool 9: Check for COA (Cadence-Owned Account)
+server.tool(
+  'flow_checkCOA',
+  'Checks if an address is a Cadence-Owned Account (COA)',
+  {
+    address: z.string().regex(/^0x[a-fA-F0-9]{40}$/).describe('The Flow EVM address to check')
+  },
+  async (args: { address: string }) => {
+    try {
+      console.error(`Checking if address is a COA: ${args.address}`);
+      
+      // COA addresses start with the prefix 0x000000000000000000000002
+      const isCOA = args.address.toLowerCase().startsWith('0x000000000000000000000002');
+      const isFactoryAddress = args.address.toLowerCase() === '0x0000000000000000000000020000000000000000';
+      
+      let message = '';
+      if (isFactoryAddress) {
+        message = `The address ${args.address} is the COA factory address, which is reserved for deploying contracts for COA accounts.`;
+      } else if (isCOA) {
+        message = `The address ${args.address} is a Cadence-Owned Account (COA), which is controlled by a resource in the Cadence environment, not by a private key.`;
+      } else {
+        message = `The address ${args.address} is not a Cadence-Owned Account (COA). It appears to be a regular Externally Owned Account (EOA) or contract address.`;
+      }
+      
+      return {
+        content: [{ 
+          type: "text", 
+          text: message
+        }]
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      return {
+        content: [{ type: "text", text: `Error: Failed to check COA status. ${errorMessage}` }],
         isError: true
       };
     }
@@ -310,7 +454,7 @@ server.tool(
 // Connect to the stdio transport and start the server
 server.connect(new StdioServerTransport())
   .then(() => {
-    console.error('Ethereum RPC MCP Server is running...');
+    console.error(`Flow EVM MCP Server (${NETWORK_CONFIG.name}) is running...`);
   })
   .catch((err) => {
     console.error('Failed to start MCP server:', err);

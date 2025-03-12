@@ -1,7 +1,7 @@
 {
-  "name": "eth-mcp",
+  "name": "flow-evm-mcp",
   "version": "1.0.0",
-  "description": "an mcp to interact with the evm",
+  "description": "Um MCP para interagir com a Flow EVM",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",

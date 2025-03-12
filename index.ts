@@ -134,9 +134,9 @@ Currency: ${NETWORK_CONFIG.currency}`
   }
 );
 
-// Tool 1: eth_getCode - Gets the code at a specific address
+// Tool 1: flow_getCode - Gets the code at a specific address
 server.tool(
-  'eth_getCode',
+  'flow_getCode',
   'Retrieves the code at a given Flow EVM address',
   {
     address: z.string().regex(/^0x[a-fA-F0-9]{40}$/).describe('The Flow EVM address to get code from'),
@@ -166,9 +166,9 @@ server.tool(
   }
 );
 
-// Tool 2: eth_chainId - Gets the current chain ID
+// Tool 2: flow_chainId - Gets the current chain ID
 server.tool(
-  'eth_chainId',
+  'flow_chainId',
   'Retrieves the current chain ID of the Flow EVM network',
   {},
   async () => {
@@ -194,9 +194,9 @@ server.tool(
   }
 );
 
-// Tool 3: eth_gasPrice - Gets the current gas price
+// Tool 3: flow_gasPrice - Gets the current gas price
 server.tool(
-  'eth_gasPrice',
+  'flow_gasPrice',
   'Retrieves the current gas price in Flow EVM',
   {},
   async () => {
@@ -224,9 +224,9 @@ server.tool(
   }
 );
 
-// Tool 4: eth_getBalance - Gets the balance of an account
+// Tool 4: flow_getBalance - Gets the balance of an account
 server.tool(
-  'eth_getBalance',
+  'flow_getBalance',
   'Retrieves the balance of a given Flow EVM address',
   {
     address: z.string().regex(/^0x[a-fA-F0-9]{40}$/).describe('The Flow EVM address to check balance'),
@@ -257,9 +257,9 @@ server.tool(
   }
 );
 
-// Tool 5: eth_call - Executes a new message call without creating a transaction
+// Tool 5: flow_call - Executes a new message call without creating a transaction
 server.tool(
-  'eth_call',
+  'flow_call',
   'Executes a call to a contract function without creating a transaction',
   {
     transaction: z.object({
@@ -294,9 +294,9 @@ server.tool(
   }
 );
 
-// Tool 6: eth_getLogs - Retrieves logs matching the given filter criteria
+// Tool 6: flow_getLogs - Retrieves logs matching the given filter criteria
 server.tool(
-  'eth_getLogs',
+  'flow_getLogs',
   'Retrieves logs matching the given filter criteria',
   {
     filter: z.object({
@@ -351,9 +351,9 @@ server.tool(
   }
 );
 
-// Tool 7: eth_sendRawTransaction - Sends a signed transaction to the network
+// Tool 7: flow_sendRawTransaction - Sends a signed transaction to the network
 server.tool(
-  'eth_sendRawTransaction',
+  'flow_sendRawTransaction',
   'Submits a signed transaction to the Flow EVM network',
   {
     signedTransactionData: z.string().regex(/^0x[a-fA-F0-9]+$/).describe('The signed transaction data')
@@ -383,9 +383,9 @@ server.tool(
   }
 );
 
-// Tool 8: eth_blockNumber - Gets the latest block number
+// Tool 8: flow_blockNumber - Gets the latest block number
 server.tool(
-  'eth_blockNumber',
+  'flow_blockNumber',
   'Gets the latest block number on the Flow EVM network',
   {},
   async () => {

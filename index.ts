@@ -1,16 +1,52 @@
-const axios = require('axios');
-const { McpServer } = require('@modelcontextprotocol/sdk/server/mcp.js');
-const { StdioServerTransport } = require('@modelcontextprotocol/sdk/server/stdio.js');
-const { z } = require('zod');
+import axios from 'axios';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { z } from 'zod';
+
+// Definição de tipos para os objetos
+type RpcResponse = {
+  jsonrpc: string;
+  id: number;
+  result?: any;
+  error?: {
+    code: number;
+    message: string;
+  };
+};
+
+type TransactionObject = {
+  from?: string;
+  to?: string;
+  gas?: string;
+  gasPrice?: string;
+  value?: string;
+  data?: string;
+  nonce?: string;
+};
+
+type LogObject = {
+  address: string;
+  blockNumber: string;
+  transactionHash: string;
+  topics: string[];
+  data: string;
+};
+
+type FilterOptions = {
+  fromBlock?: string;
+  toBlock?: string;
+  address?: string | string[];
+  topics?: (string | string[] | null)[];
+};
 
 // Redirect console.log to stderr to avoid breaking the MCP protocol
 const originalConsoleLog = console.log;
-console.log = function() {
-  console.error.apply(console, arguments);
+console.log = function(...args: any[]): void {
+  console.error.apply(console, args);
 };
 
 // Ethereum RPC URL
-const ETH_RPC_URL = 'https://eth.llamarpc.com';
+const ETH_RPC_URL: string = 'https://eth.llamarpc.com';
 
 // Initialize the MCP server
 const server = new McpServer({
@@ -19,9 +55,9 @@ const server = new McpServer({
 });
 
 // Helper function to make RPC calls
-async function makeRpcCall(method, params = []) {
+async function makeRpcCall(method: string, params: any[] = []): Promise<any> {
   try {
-    const response = await axios.post(ETH_RPC_URL, {
+    const response = await axios.post<RpcResponse>(ETH_RPC_URL, {
       jsonrpc: '2.0',
       id: 1,
       method,
@@ -34,7 +70,8 @@ async function makeRpcCall(method, params = []) {
 
     return response.data.result;
   } catch (error) {
-    console.error(`Error making RPC call to ${method}:`, error.message);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error(`Error making RPC call to ${method}:`, errorMessage);
     throw error;
   }
 }
@@ -47,7 +84,7 @@ server.tool(
     address: z.string().regex(/^0x[a-fA-F0-9]{40}$/).describe('The Ethereum address to get code from'),
     blockParameter: z.string().default('latest').describe('Block parameter (default: "latest")')
   },
-  async (args) => {
+  async (args: { address: string; blockParameter: string }) => {
     try {
       console.error(`Getting code for address: ${args.address} at block: ${args.blockParameter}`);
       
@@ -62,8 +99,9 @@ server.tool(
         }]
       };
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       return {
-        content: [{ type: "text", text: `Error: Failed to get code. ${error.message}` }],
+        content: [{ type: "text", text: `Error: Failed to get code. ${errorMessage}` }],
         isError: true
       };
     }
@@ -91,8 +129,9 @@ server.tool(
         }]
       };
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       return {
-        content: [{ type: "text", text: `Error: Failed to get gas price. ${error.message}` }],
+        content: [{ type: "text", text: `Error: Failed to get gas price. ${errorMessage}` }],
         isError: true
       };
     }
@@ -107,7 +146,7 @@ server.tool(
     address: z.string().regex(/^0x[a-fA-F0-9]{40}$/).describe('The Ethereum address to check balance'),
     blockParameter: z.string().default('latest').describe('Block parameter (default: "latest")')
   },
-  async (args) => {
+  async (args: { address: string; blockParameter: string }) => {
     try {
       console.error(`Getting balance for address: ${args.address} at block: ${args.blockParameter}`);
       
@@ -123,8 +162,9 @@ server.tool(
         }]
       };
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       return {
-        content: [{ type: "text", text: `Error: Failed to get balance. ${error.message}` }],
+        content: [{ type: "text", text: `Error: Failed to get balance. ${errorMessage}` }],
         isError: true
       };
     }
@@ -146,7 +186,7 @@ server.tool(
     }).describe('The transaction call object'),
     blockParameter: z.string().default('latest').describe('Block parameter (default: "latest")')
   },
-  async (args) => {
+  async (args: { transaction: TransactionObject; blockParameter: string }) => {
     try {
       console.error(`Executing eth_call with transaction to: ${args.transaction.to} at block: ${args.blockParameter}`);
       
@@ -159,8 +199,9 @@ server.tool(
         }]
       };
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       return {
-        content: [{ type: "text", text: `Error: Failed to execute call. ${error.message}` }],
+        content: [{ type: "text", text: `Error: Failed to execute call. ${errorMessage}` }],
         isError: true
       };
     }
@@ -186,11 +227,11 @@ server.tool(
       ])).optional().describe('Array of 32 Bytes DATA topics')
     }).describe('The filter options')
   },
-  async (args) => {
+  async (args: { filter: FilterOptions }) => {
     try {
       console.error(`Getting logs with filter: ${JSON.stringify(args.filter)}`);
       
-      const logs = await makeRpcCall('eth_getLogs', [args.filter]);
+      const logs = await makeRpcCall('eth_getLogs', [args.filter]) as LogObject[];
       
       if (logs.length === 0) {
         return {
@@ -215,8 +256,9 @@ server.tool(
         }]
       };
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       return {
-        content: [{ type: "text", text: `Error: Failed to get logs. ${error.message}` }],
+        content: [{ type: "text", text: `Error: Failed to get logs. ${errorMessage}` }],
         isError: true
       };
     }
@@ -238,7 +280,7 @@ server.tool(
       nonce: z.string().regex(/^0x[a-fA-F0-9]+$/).optional().describe('Integer of a nonce used to prevent transaction replay')
     }).describe('The transaction object')
   },
-  async (args) => {
+  async (args: { transaction: TransactionObject }) => {
     try {
       console.error(`Sending transaction from: ${args.transaction.from}`);
       
@@ -253,10 +295,11 @@ server.tool(
         }]
       };
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       return {
         content: [{ 
           type: "text", 
-          text: `Error: Failed to send transaction. ${error.message}\n\nNote: Most public RPC endpoints don't allow sending raw transactions as it requires an unlocked account. Consider using a wallet or signing the transaction locally before broadcasting.`
+          text: `Error: Failed to send transaction. ${errorMessage}\n\nNote: Most public RPC endpoints don't allow sending raw transactions as it requires an unlocked account. Consider using a wallet or signing the transaction locally before broadcasting.`
         }],
         isError: true
       };
@@ -272,4 +315,4 @@ server.connect(new StdioServerTransport())
   .catch((err) => {
     console.error('Failed to start MCP server:', err);
     process.exit(1);
-  });
+  }); 
